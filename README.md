@@ -1,6 +1,6 @@
 # 한기대 OpenAI API를 활용한 AI 서비스 개발 II
 
-https://voicebot2025-aomsvhas68bppfyy5bxjsn.streamlit.app과 같은 봇 만들기 할 예정
+## https://voicebot2025-aomsvhas68bppfyy5bxjsn.streamlit.app과 같은 봇 만들기 할 예정
 
 1. pip install streamlit streamlit-audiorecorder
 
@@ -14,7 +14,7 @@ pip list --format=freeze > requirements.txt
 5. packages.txt 파일 생성
 파일 내용으로 ffmpeg 을 기술
 
-6. packages.txt생성
+6. packages.txt생성(packages.txt에는 ffmpeg라고만 입력)
 packages.txt : 리눅스패키지
 requirements.txt : 파이썬 패키지
 
@@ -22,4 +22,9 @@ requirements.txt : 파이썬 패키지
 
 8.https://streamlit.io/cloud free계정 생성(지금 구글 계정으로 가입함)
 
-9. Workspaces -> setting -> github로그인 클릭 -> Authorize streamlit 클릭
+9. Workspaces -> setting -> github로그인 클릭 -> Authorize streamlit 클릭하면
+    settings->applications->Authorized OAuth Apps에 나옴. 연결을 제거하려면 revoke
+ 
+10. streamlit.io에 create App 클릭 -> Deploy now
+Advanced settings에
+OPENAI_API_KEY = "key"추가
