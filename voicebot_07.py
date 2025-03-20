@@ -5,10 +5,80 @@ from dotenv import load_dotenv
 from audiorecorder import audiorecorder
 from datetime import datetime
 import base64
-
+import json
+# 답변을 text와 audio로 출력
 load_dotenv()
 
 client = openai.OpenAI()
+import requests
+
+# def get_weather(location):
+#     response = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude=37.5665&longitude=126.9780&current_weather=true")
+#     if response.status_code == 200:
+#         data = response.json()
+#         return f"현재 {location}의 온도는 {data['current_weather']['temperature']}°C 입니다."
+#     return "날씨 정보를 가져오는데 실패했습니다."
+def get_weather(latitude, longitude):
+    response = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current=temperature_2m,wind_speed_10m&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m")
+    data = response.json()
+    return data['current']['temperature_2m']
+
+def get_exchange_rate():
+    response = requests.get("https://api.exchangerate-api.com/v4/latest/USD")
+    if response.status_code == 200:
+        data = response.json()
+        rate = data['rates'].get('KRW', '알 수 없음')
+        return f"현재 원-달러 환율은 1달러당 {rate}원 입니다."
+    return "환율 정보를 가져오는데 실패했습니다."
+
+
+tools = [
+{
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "Get current temperature for provided coordinates in celsius.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "latitude": {"type": "number"},
+                "longitude": {"type": "number"}
+            },
+            "required": ["latitude", "longitude"],
+            "additionalProperties": False
+        },
+        "strict": True
+    }
+},
+# {
+#     "type": "function",
+#     "function": {
+#         "name": "get_weather",
+#         "description": "특정 장소의 날씨를 조회합니다.",
+#         "parameters": {
+#             "type": "object",
+#             "properties": {
+#                 "location": {"type": "string"}
+#             },
+#             "required": ["location"],
+#             "additionalProperties": False
+#         },
+#         "strict": True
+#     }
+# },
+{
+    "type": "function",
+    "function": {
+        "name": "get_exchange_rate",
+        "description": "현재 원-달러 환율을 조회합니다.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False
+        },
+        "strict": True
+    }
+}]
 
 def speech_to_text(speech):
     filename='input.mp3'
@@ -24,12 +94,45 @@ def speech_to_text(speech):
     
     return transcription.text
 
-def generate_chat_response(messages):
+def generate_chat_response(messages):    
     response = client.chat.completions.create(
         model="gpt-4o-mini", 
-        messages=messages
+        messages=messages,
+        tools=tools,
+        tool_choice="auto",
+        #temperature=0.5,
     )
-    return response.choices[0].message.content
+    tool_calls = response.choices[0].message.tool_calls
+    if tool_calls:      
+        print('messages :',messages)  
+        messages.append({
+            "role": "assistant",
+            "tool_calls": response.choices[0].message.tool_calls
+        })
+        #messages.append(response.choices[0].message)
+        print('messages :',messages)
+        for tool_call in tool_calls:
+            func_name = tool_call.function.name
+            if func_name == "get_weather":
+                args = json.loads(tool_call.function.arguments)
+                #result = get_weather(args["location"])
+                result = get_weather(args["latitude"], args["longitude"])
+            elif func_name == "get_exchange_rate":
+                result = get_exchange_rate()    
+            messages.append({
+                "role":"tool",
+                "tool_call_id":tool_call.id,
+                "content": str(result)
+            })
+        final_response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            tools=tools,
+        )
+        return final_response.choices[0].message.content
+    else:
+        return response.choices[0].message.content
+    
 
 def text_to_speech(text):
     filename = "output.mp3"
@@ -85,7 +188,7 @@ def main():
         # 추가적인 여백을 위한 빈 마크다운
         st.markdown("")
 
-    system_message = "당싱은 친절한 헬퍼입니다. 30 단어 미만의 한국어로 답뱐해줏세요."
+    system_message = "당싱은 친절한 헬퍼입니다. 30 단어 미만으로 답뱐해줏세요."
 
     # session state 초기화
     if "chat" not in st.session_state:
